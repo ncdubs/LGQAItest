@@ -1,30 +1,32 @@
 import streamlit as st
 import openai
 
-# Set up API key securely
+# 🔐 Load OpenAI API key from secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-st.title("SKU Identifier (AI-Powered)")
+# ✅ Initialize the OpenAI client
+client = openai.OpenAI(api_key=openai.api_key)
 
+# 🎯 Title and instructions
+st.title("SKU Identifier (AI-Powered)")
 sku_input = st.text_input("Enter a product SKU (e.g., LREL6325F):")
 
 if sku_input:
-    with st.spinner("Thinking..."):
-        prompt = f"""
-        Given the product SKU "{sku_input}", try to identify what type of appliance this is. 
-        You can guess the brand if possible (e.g. LG, Samsung, GE) and give a short 2-sentence description.
-        """
+    try:
+        # 🧠 Build the prompt
+        prompt = f"What brand is the product with SKU '{sku_input}'? Please only return the brand name or say 'Unknown' if you cannot determine it."
 
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4",  # or "gpt-3.5-turbo" for free-tier
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-            )
+        # 📡 Call OpenAI's API using new v1.0+ format
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You're a product data assistant. Respond only with brand names if possible."},
+                {"role": "user", "content": prompt}
+            ]
+        )
 
-            result = response.choices[0].message["content"]
-            st.success("AI SKU Description:")
-            st.write(result)
+        result = response.choices[0].message.content.strip()
+        st.success(f"🧾 Detected Brand: **{result}**")
 
-        except Exception as e:
-            st.error(f"Error: {e}")
+    except Exception as e:
+        st.error(f"Error: {e}")
