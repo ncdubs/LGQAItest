@@ -1,32 +1,132 @@
+# Streamlit SKU Matcher with GPT and Tokens
+
 import streamlit as st
 import openai
+import os
 
-# 🔐 Load OpenAI API key from secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# --- BASIC PASSWORD PROTECTION ---
+def login():
+    password = st.text_input("Enter Password", type="password")
+    if password != st.secrets.get("APP_PASSWORD", "letmein"):
+        st.warning("Incorrect password.")
+        st.stop()
 
-# ✅ Initialize the OpenAI client
-client = openai.OpenAI(api_key=openai.api_key)
+login()
 
-# 🎯 Title and instructions
-st.title("SKU Identifier (AI-Powered)")
-sku_input = st.text_input("Enter a product SKU (e.g., LREL6325F):")
+# --- API KEY SETUP ---
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Secured in Render
 
-if sku_input:
-    try:
-        # 🧠 Build the prompt
-        prompt = f"What brand is the product with SKU '{sku_input}'? Please only return the brand name or say 'Unknown' if you cannot determine it."
+st.title("AI-Powered SKU Matcher")
 
-        # 📡 Call OpenAI's API using new v1.0+ format
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You're a product data assistant. Respond only with brand names if possible."},
-                {"role": "user", "content": prompt}
-            ]
-        )
+# --- INPUT ---
+sku = st.text_input("Enter Competitor SKU:")
+specific_feature = st.text_input("Any specific feature you want to see/match (e.g., ADA compliance, stainless steel tub)?")
+submit = st.button("Find GE Equivalent")
 
-        result = response.choices[0].message.content.strip()
-        st.success(f"🧾 Detected Brand: **{result}**")
+# --- GPT PROMPT FUNCTIONS ---
+def get_competitor_product_info(sku):
+    prompt = f"""
+    A customer entered this appliance SKU: {sku}.
 
-    except Exception as e:
-        st.error(f"Error: {e}")
+    1. Identify which brand this SKU belongs to (e.g., Frigidaire, LG, Whirlpool).
+    2. Visit that brand's official website.
+    3. Locate the product page for this exact SKU.
+    4. Return a bullet-point summary of:
+       - Brand
+       - Product type
+       - Dimensions and capacity
+       - Key features or configurations
+       - **Full list price (MSRP or price before any sales or discounts)**
+       - Link to the product page
+
+    ⚠️ Do NOT return a sale price. Only return the original full price if it is shown. If no full price is available, say 'Full price not listed.'
+    """
+    
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant skilled at retrieving and summarizing appliance product information."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message['content']
+
+def get_ge_match(product_summary):
+    prompt = f"""
+    Based on this competitor product description:
+
+    {product_summary}
+
+    Search GEAppliances.com and recommend the most similar GE product.
+    Return:
+    - GE product name and model
+    - Why it's a good match (compare key features)
+    - Product link (if possible)
+
+    Be concise and helpful.
+    """
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a product expert skilled at comparing appliances and recommending equivalent GE models."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message['content']
+
+def generate_comparison_table(competitor_info, ge_match, feature):
+    prompt = f"""
+    You previously analyzed a competitor appliance and recommended a matching GE product.
+
+    Competitor product:
+    {competitor_info}
+
+    GE recommendation:
+    {ge_match}
+
+    Return a markdown table comparing the following attributes side-by-side:
+    - Brand
+    - Price (original MSRP)
+    - Size or dimensions
+    - Configuration (top control, front load, stackable, etc.)
+    - {feature if feature else 'N/A'}
+    - Product link
+
+    Format the response as a markdown table like this:
+
+    | Feature       | Competitor Product     | GE Product           |
+    |---------------|------------------------|----------------------|
+    | Brand         | [brand]                | [brand]              |
+    | Price         | [price]                | [price]              |
+    | Size          | [size]                 | [size]               |
+    | Configuration | [config]               | [config]             |
+    | {feature if feature else 'Feature'}     | [value]              | [value]              |
+    | Product Link  | [link]                 | [link]               |
+    """
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that can compare features between appliances."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message['content']
+
+# --- MAIN LOGIC ---
+if submit and sku:
+    with st.spinner("Retrieving competitor product info..."):
+        competitor_info = get_competitor_product_info(sku)
+        st.subheader("Competitor Product Info")
+        st.markdown(competitor_info)
+
+    with st.spinner("Finding best GE match..."):
+        ge_match = get_ge_match(competitor_info)
+        st.subheader("Recommended GE Equivalent")
+        st.markdown(ge_match)
+
+    with st.spinner("Generating comparison table..."):
+        feature_check = generate_comparison_table(competitor_info, ge_match, specific_feature)
+        st.subheader("Feature Comparison Table")
+        st.markdown(feature_check)
