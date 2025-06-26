@@ -88,16 +88,16 @@ def generate_comparison_table(competitor_info, ge_match, features):
     base_rows = [
         "| Feature           | Competitor Product     | GE Product           |",
         "|-------------------|------------------------|----------------------|",
-        "| Brand             | Whirlpool              | GE                   |",
-        "| SKU               | WDT730HAMZ             | GDT630PYRFS          |",
-        "| Price             | $699                   | $699                 |",
-        "| Size              | 24\" x 34\"            | 24\" x 34\"          |",
-        "| Configuration     | Front control          | Front control        |"
+        "| Brand             | [Brand Placeholder]    | [Brand Placeholder]  |",
+        "| SKU               | [SKU1]                 | [SKU2]               |",
+        "| Price             | [Price1]               | [Price2]             |",
+        "| Size              | [Size1]                | [Size2]              |",
+        "| Configuration     | [Config1]              | [Config2]            |"
     ]
     feature_rows = [
-        f"| {feature}         | ✅ Yes                | ✅ Yes              |" for feature in features
+        f"| {feature}         | [value1]               | [value2]             |" for feature in features
     ] if features else []
-    links_row = "| Product Link      | [Link](https://example.com/competitor-product) | [Link](https://www.geappliances.com/appliance/GDT630PYRFS) |"
+    links_row = "| Product Link      | [Link1]                | [Link2]               |"
     return "\n".join(base_rows + feature_rows + [links_row])
 
 # --- MAIN LOGIC ---
@@ -118,6 +118,12 @@ if st.session_state.submitted:
         st.subheader("Recommended Equivalent")
         st.markdown(ge_match)
 
+    # --- Placeholder image URLs extracted from AI response (replace once dynamic) ---
+    st.image([
+        "https://example.com/competitor_image.jpg",
+        "https://example.com/ge_image.jpg"
+    ], width=300, caption=["Competitor Product", "GE Product"])
+
     feature_options = [
         "ADA compliance", "Stainless steel tub", "WiFi connectivity",
         "Energy Star rated", "Top control panel", "Child lock",
@@ -132,4 +138,4 @@ if st.session_state.submitted:
     show_diff = st.radio("Show what doesn't match?", ["No", "Yes"], horizontal=True)
     if show_diff == "Yes":
         st.subheader("What Doesn't Match")
-        st.markdown("None (very close match)")
+        st.markdown("[Differences placeholder from GPT response once key is active]")
