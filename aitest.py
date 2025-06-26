@@ -118,21 +118,84 @@ if st.session_state.submitted:
         st.subheader("Recommended Equivalent")
         st.markdown(ge_match)
 
-    # --- Placeholder image URLs extracted from AI response (replace once dynamic) ---
     st.image([
         "https://example.com/competitor_image.jpg",
         "https://example.com/ge_image.jpg"
     ], width=300, caption=["Competitor Product", "GE Product"])
 
-    feature_options = [
-        "ADA compliance", "Stainless steel tub", "WiFi connectivity",
-        "Energy Star rated", "Top control panel", "Child lock",
-        "Third rack", "SmartDry", "Quiet operation", "Steam clean"
-    ]
-    specific_features = st.multiselect("Select features to compare:", feature_options)
+    # Smart feature suggestions by product type (placeholder logic)
+    product_type = "Dishwasher" if "dishwasher" in competitor_info.lower() else "Refrigerator"
+    smart_features = {
+        "Dishwasher": [
+            "ADA compliance", "Stainless steel tub", "Top control panel",
+            "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"
+        ],
+        "Refrigerator": [
+            "ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker",
+            "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"
+        ],
+        "Washer": [
+            "ADA compliance", "Stackable", "Front load", "Top load", "Steam wash",
+            "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"
+        ],
+        "Dryer": [
+            "ADA compliance", "Stackable", "Gas or Electric", "Steam refresh",
+            "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"
+        ],
+        "Range": [
+            "ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean",
+            "Griddle", "Induction cooktop", "Smart control"
+        ],
+        "Microwave": [
+            "ADA compliance", "Sensor cooking", "Convection option", "Over-the-range",
+            "Built-in", "Child lock", "Quick reheat"
+        ],
+        "Wall Oven": [
+            "ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake",
+            "WiFi control", "Touchscreen"
+        ],
+        "Cooktop": [
+            "ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element",
+            "Knob or touch controls", "Power boil"
+        ],
+        "Freezer": [
+            "ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready",
+            "Temperature alarm", "LED lighting"
+        ],
+        "Air Conditioner": [
+            "ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode",
+            "Smart thermostat", "Energy saver", "Remote control"
+        ],
+        "Wine Cooler": [
+            "ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection",
+            "Humidity control", "Quiet compressor"
+        ],
+        "Icemaker": [
+            "ADA compliance", "Built-in", "Freestanding", "Clear cube ice",
+            "Daily production rate", "Storage capacity"
+        ],
+        "Laundry Center / Combo": [
+            "ADA compliance", "Stackable", "All-in-one", "Steam wash",
+            "Sensor dry", "WiFi connectivity", "Space-saving design"
+        ],
+        "Trash Compactor": [
+            "ADA compliance", "Touch-toe drawer", "Odor control", "Air filter",
+            "Stainless steel construction", "Removable key lock"
+        ],
+        "Garbage Disposal": [
+            "ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components",
+            "Sound insulation", "Septic safe"
+        ]
+    }
+    feature_options = smart_features.get(product_type, [])
+
+    selected_features = st.multiselect("Select features to compare:", feature_options)
+    other_feature = st.text_input("Or enter another feature you'd like to compare:")
+    if other_feature:
+        selected_features.append(other_feature)
 
     st.subheader("Feature Comparison Table")
-    feature_check = generate_comparison_table(competitor_info, ge_match, specific_features)
+    feature_check = generate_comparison_table(competitor_info, ge_match, selected_features)
     st.markdown(feature_check, unsafe_allow_html=True)
 
     show_diff = st.radio("Show what doesn't match?", ["No", "Yes"], horizontal=True)
