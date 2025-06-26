@@ -1,17 +1,8 @@
-# Streamlit SKU Matcher with GPT and Tokens (Demo Mode)
+# Streamlit SKU Matcher with GPT and Tokens
 
 import streamlit as st
 import openai
 import os
-
-# --- MODE TOGGLE ---
-DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
-
-# --- SESSION STATE ---
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-if "sku" not in st.session_state:
-    st.session_state.sku = ""
 
 # --- BASIC PASSWORD PROTECTION ---
 def login():
@@ -23,62 +14,111 @@ def login():
 login()
 
 # --- API KEY SETUP ---
-if not DEMO_MODE:
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-st.title("AI-Powered SKU Matcher (Demo Mode Enabled)" if DEMO_MODE else "AI-Powered SKU Matcher")
+st.title("AI-Powered SKU Matcher")
 
 # --- INPUT ---
-sku = st.text_input("Enter Competitor SKU:", value=st.session_state.sku)
+sku = st.text_input("Enter Competitor SKU:")
 submit = st.button("Find Equivalent")
 
 # --- GPT PROMPT FUNCTIONS ---
 def get_competitor_product_info(sku):
-    if DEMO_MODE:
-        return f"""
-        - Brand: Whirlpool  
-        - Product type: Dishwasher  
-        - Dimensions: 24\"W x 34\"H  
-        - Key features: Stainless steel tub, Quiet operation  
-        - Full list price: $699  
-        - SKU: WDT730HAMZ  
-        - Link: https://example.com/competitor-product
-        """
-    # GPT logic here...
+    prompt = f"""
+    A customer entered this appliance SKU: {sku}.
 
+    1. Identify which brand this SKU belongs to (e.g., Frigidaire, LG, Whirlpool).
+    2. Visit that brand's official website.
+    3. Locate the product page for this exact SKU.
+    4. Return a bullet-point summary of:
+       - Brand
+       - Product type
+       - Dimensions and capacity
+       - Key features or configurations
+       - **Full list price (MSRP or price before any sales or discounts)**
+       - Link to the product page
+
+    ⚠️ Do NOT return a sale price. Only return the original full price if it is shown. If no full price is available, say 'Full price not listed.'
+    """
+
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant skilled at retrieving and summarizing appliance product information."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content
 
 def get_ge_match(product_summary):
-    if DEMO_MODE:
-        return f"GE Model: GDT630PYRFS  \nWhy it matches: Same size, stainless tub, quiet features  \nSKU: GDT630PYRFS  \nLink: https://www.geappliances.com/appliance/GDT630PYRFS"
-    # GPT logic here...
+    prompt = f"""
+    Based on this competitor product description:
 
+    {product_summary}
+
+    Search GEAppliances.com and recommend the most similar GE product.
+    Return:
+    - GE product name and model
+    - Why it's a good match (compare key features)
+    - Product link (if possible)
+
+    Be concise and helpful.
+    """
+
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a product expert skilled at comparing appliances and recommending equivalent GE models."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content
 
 def generate_comparison_table(competitor_info, ge_match, feature):
-    if DEMO_MODE:
-        return f"""
-        | Feature           | Competitor Product     | GE Product           |
-        |-------------------|------------------------|----------------------|
-        | Brand             | Whirlpool              | GE                   |
-        | SKU               | WDT730HAMZ             | GDT630PYRFS          |
-        | Price             | $699                   | $699                 |
-        | Size              | 24\" x 34\"            | 24\" x 34\"          |
-        | Configuration     | Front control          | Front control        |
-        | {feature}         | Yes                    | Yes                  |
-        | Product Link      | [Link](https://example.com/competitor-product) | [Link](https://www.geappliances.com/appliance/GDT630PYRFS) |
-        | What Doesn't Match | None (very close match) | None (very close match) |
-        """
-    # GPT logic here...
+    prompt = f"""
+    You previously analyzed a competitor appliance and recommended a matching GE product.
+
+    Competitor product:
+    {competitor_info}
+
+    GE recommendation:
+    {ge_match}
+
+    Return a markdown table comparing the following attributes side-by-side:
+    - Brand
+    - Price (original MSRP)
+    - Size or dimensions
+    - Configuration (top control, front load, stackable, etc.)
+    - {feature if feature else 'N/A'}
+    - Product link
+
+    Format the response as a markdown table like this:
+
+    | Feature       | Competitor Product     | GE Product           |
+    |---------------|------------------------|----------------------|
+    | Brand         | [brand]                | [brand]              |
+    | Price         | [price]                | [price]              |
+    | Size          | [size]                 | [size]               |
+    | Configuration | [config]               | [config]             |
+    | {feature if feature else 'Feature'}     | [value]              | [value]              |
+    | Product Link  | [link]                 | [link]               |
+    """
+
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that can compare features between appliances."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content
 
 # --- MAIN LOGIC ---
 specific_feature = None
 
 if submit and sku:
-    st.session_state.sku = sku
-    st.session_state.submitted = True
-
-if st.session_state.submitted:
     with st.spinner("Retrieving competitor product info..."):
-        competitor_info = get_competitor_product_info(st.session_state.sku)
+        competitor_info = get_competitor_product_info(sku)
         st.subheader("Competitor Product Info")
         st.markdown(competitor_info)
 
@@ -94,8 +134,7 @@ if st.session_state.submitted:
     ]
     specific_feature = st.selectbox("Select a specific feature to compare:", feature_options)
 
-    if specific_feature:
-        with st.spinner("Generating comparison table..."):
-            feature_check = generate_comparison_table(competitor_info, ge_match, specific_feature)
-            st.subheader("Feature Comparison Table")
-            st.markdown(feature_check)
+    with st.spinner("Generating comparison table..."):
+        feature_check = generate_comparison_table(competitor_info, ge_match, specific_feature)
+        st.subheader("Feature Comparison Table")
+        st.markdown(feature_check)
