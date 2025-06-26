@@ -94,12 +94,37 @@ def generate_comparison_table(competitor_info, ge_match, features):
         "| Size              | [Size1]                | [Size2]              |",
         "| Configuration     | [Config1]              | [Config2]            |"
     ]
-    feature_rows = [
-        f"| {feature}         | ✅ Yes                | ❌ No               |" if feature == "ADA compliance" else f"| {feature}         | Text from Competitor   | Text from GE         |"
-        for feature in features
-    ] if features else []
+    feature_rows = []
+    for feature in features:
+        prompt = f"""
+        A user is comparing two appliances and wants to know the specific values for this feature: {feature}.
+
+        Competitor Product:
+        {competitor_info}
+
+        GE Match:
+        {ge_match}
+
+        Please return a clean markdown table row in the following format:
+        | {feature} | [value or "Not listed"] | [value or "Not listed"] |
+
+        Do not explain. Do not include extra text. Only return the table row.
+        If a value is unknown, use "Not listed".
+        """
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You return markdown table rows comparing appliance feature values."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            feature_rows.append(response.choices[0].message.content.strip())
+        except Exception as e:
+            feature_rows.append(f"| {feature} | Error retrieving info | Error retrieving info |")
     links_row = "| Product Link      | [Link1]                | [Link2]               |"
-    return "\n".join(base_rows + feature_rows + [links_row])
+    return "
+".join(base_rows + feature_rows + [links_row])
 
 def get_differences_description(competitor_info, ge_match):
     try:
