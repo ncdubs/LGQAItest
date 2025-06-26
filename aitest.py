@@ -68,6 +68,7 @@ def get_ge_match(product_summary):
         Search GEAppliances.com and recommend the best match from GE, GE Profile, Cafe, Monogram, Haier, or Hotpoint. Make sure the product is currently available and not marked as 'no longer being manufactured' or 'discontinued'.
         Return:
         - GE product name and model
+        - Confirm that it is currently available and not discontinued
         - Why it's the best match
         - SKU
         - Link
@@ -80,7 +81,50 @@ def get_ge_match(product_summary):
                 {"role": "user", "content": prompt}
             ]
         )
-        return response.choices[0].message.content
+        raw_output = response.choices[0].message.content
+
+        # Secondary availability check
+        verify_prompt = f"""
+        Is the following GE appliance currently available and not discontinued?
+
+        {raw_output}
+
+        Answer Yes or No only.
+        """
+        verify = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "user", "content": verify_prompt}
+            ]
+        ).choices[0].message.content.strip().lower()
+
+        if "no" in verify:
+            retry_prompt = f"""
+            Based on this competitor product description:
+
+            {product_summary}
+
+            The last GE recommendation was discontinued. Recommend a different GE product from GE, GE Profile, Cafe, Monogram, Haier, or Hotpoint that is similar and currently available.
+
+            DO NOT recommend discontinued or unavailable products.
+            ONLY return products that are currently listed on GEAppliances.com and actively available for sale.
+            If uncertain about availability, do not include it.
+
+            Return:
+            - GE product name and model
+            - Why it's the best match
+            - SKU
+            - Link
+            - Image URL (if possible)
+            """
+            retry_response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a product expert skilled at comparing appliances and recommending the best equivalent GE model."},
+                    {"role": "user", "content": retry_prompt}
+                ]
+            )
+            return retry_response.choices[0].message.content
     except Exception as e:
         return f"**Error retrieving GE match:** {str(e)}"
 
