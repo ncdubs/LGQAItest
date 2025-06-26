@@ -95,10 +95,22 @@ def generate_comparison_table(competitor_info, ge_match, features):
         "| Configuration     | [Config1]              | [Config2]            |"
     ]
     feature_rows = [
-        f"| {feature}         | [value1]               | [value2]             |" for feature in features
+        f"| {feature}         | ✅ Yes                | ❌ No               |" if feature == "ADA compliance" else f"| {feature}         | Text from Competitor   | Text from GE         |"
+        for feature in features
     ] if features else []
     links_row = "| Product Link      | [Link1]                | [Link2]               |"
     return "\n".join(base_rows + feature_rows + [links_row])
+
+def generate_differences_table():
+    return """
+    | Feature               | Competitor Product       | GE Product               |
+    |------------------------|---------------------------|--------------------------|
+    | ADA compliance         | ✅ Yes                    | ❌ No                   |
+    | Stainless steel tub    | ✅ Yes                    | ✅ Yes                  |
+    | Third rack             | ❌ No                     | ✅ Yes                  |
+    | Noise level            | 44 dBA                    | 50 dBA                  |
+    | Steam cycle            | Not listed                | ✅ Included             |
+    """
 
 # --- MAIN LOGIC ---
 specific_features = []
@@ -123,8 +135,7 @@ if st.session_state.submitted:
         "https://example.com/ge_image.jpg"
     ], width=300, caption=["Competitor Product", "GE Product"])
 
-    # Smart feature suggestions by product type (placeholder logic)
-    product_type = "Dishwasher" if "dishwasher" in competitor_info.lower() else "Refrigerator"
+    # Smart feature suggestions by product type
     smart_features = {
         "Dishwasher": [
             "ADA compliance", "Stainless steel tub", "Top control panel",
@@ -187,7 +198,14 @@ if st.session_state.submitted:
             "Sound insulation", "Septic safe"
         ]
     }
-    feature_options = smart_features.get(product_type, [])
+
+    detected_type = "Refrigerator"  # default fallback
+    for appliance_type in smart_features.keys():
+        if appliance_type.lower() in competitor_info.lower():
+            detected_type = appliance_type
+            break
+
+    feature_options = smart_features.get(detected_type, [])
 
     selected_features = st.multiselect("Select features to compare:", feature_options)
     other_feature = st.text_input("Or enter another feature you'd like to compare:")
@@ -201,4 +219,5 @@ if st.session_state.submitted:
     show_diff = st.radio("Show what doesn't match?", ["No", "Yes"], horizontal=True)
     if show_diff == "Yes":
         st.subheader("What Doesn't Match")
-        st.markdown("[Differences placeholder from GPT response once key is active]")
+        diff_table = generate_differences_table()
+        st.markdown(diff_table, unsafe_allow_html=True)
