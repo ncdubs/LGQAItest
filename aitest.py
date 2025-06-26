@@ -101,16 +101,53 @@ def generate_comparison_table(competitor_info, ge_match, features):
     links_row = "| Product Link      | [Link1]                | [Link2]               |"
     return "\n".join(base_rows + feature_rows + [links_row])
 
-def generate_differences_table():
-    return """
-    | Feature               | Competitor Product       | GE Product               |
-    |------------------------|---------------------------|--------------------------|
-    | ADA compliance         | ✅ Yes                    | ❌ No                   |
-    | Stainless steel tub    | ✅ Yes                    | ✅ Yes                  |
-    | Third rack             | ❌ No                     | ✅ Yes                  |
-    | Noise level            | 44 dBA                    | 50 dBA                  |
-    | Steam cycle            | Not listed                | ✅ Included             |
-    """
+def get_differences_description(competitor_info, ge_match):
+    try:
+        prompt = f"""
+        Compare the following two appliance descriptions. Write a concise paragraph summarizing what key features do NOT match or differ between them.
+        
+        Competitor Product:
+        {competitor_info}
+
+        GE Match:
+        {ge_match}
+
+        Be clear and use simple language. Mention features that are included in one product but not the other.
+        """
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that identifies key differences in appliance specifications."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"**Error identifying mismatches:** {str(e)}"
+
+def get_feature_specific_difference(competitor_info, ge_match, user_input):
+    try:
+        prompt = f"""
+        A user is comparing two appliances and wants to know the specific difference related to: {user_input}.
+
+        Competitor Product:
+        {competitor_info}
+
+        GE Match:
+        {ge_match}
+
+        Give a short and clear answer describing whether the feature exists in both, only one, or neither product.
+        """
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You help identify appliance feature differences clearly."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"**Error comparing specific feature:** {str(e)}"
 
 # --- MAIN LOGIC ---
 specific_features = []
@@ -135,71 +172,25 @@ if st.session_state.submitted:
         "https://example.com/ge_image.jpg"
     ], width=300, caption=["Competitor Product", "GE Product"])
 
-    # Smart feature suggestions by product type
     smart_features = {
-        "Dishwasher": [
-            "ADA compliance", "Stainless steel tub", "Top control panel",
-            "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"
-        ],
-        "Refrigerator": [
-            "ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker",
-            "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"
-        ],
-        "Washer": [
-            "ADA compliance", "Stackable", "Front load", "Top load", "Steam wash",
-            "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"
-        ],
-        "Dryer": [
-            "ADA compliance", "Stackable", "Gas or Electric", "Steam refresh",
-            "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"
-        ],
-        "Range": [
-            "ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean",
-            "Griddle", "Induction cooktop", "Smart control"
-        ],
-        "Microwave": [
-            "ADA compliance", "Sensor cooking", "Convection option", "Over-the-range",
-            "Built-in", "Child lock", "Quick reheat"
-        ],
-        "Wall Oven": [
-            "ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake",
-            "WiFi control", "Touchscreen"
-        ],
-        "Cooktop": [
-            "ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element",
-            "Knob or touch controls", "Power boil"
-        ],
-        "Freezer": [
-            "ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready",
-            "Temperature alarm", "LED lighting"
-        ],
-        "Air Conditioner": [
-            "ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode",
-            "Smart thermostat", "Energy saver", "Remote control"
-        ],
-        "Wine Cooler": [
-            "ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection",
-            "Humidity control", "Quiet compressor"
-        ],
-        "Icemaker": [
-            "ADA compliance", "Built-in", "Freestanding", "Clear cube ice",
-            "Daily production rate", "Storage capacity"
-        ],
-        "Laundry Center / Combo": [
-            "ADA compliance", "Stackable", "All-in-one", "Steam wash",
-            "Sensor dry", "WiFi connectivity", "Space-saving design"
-        ],
-        "Trash Compactor": [
-            "ADA compliance", "Touch-toe drawer", "Odor control", "Air filter",
-            "Stainless steel construction", "Removable key lock"
-        ],
-        "Garbage Disposal": [
-            "ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components",
-            "Sound insulation", "Septic safe"
-        ]
+        "Dishwasher": ["ADA compliance", "Stainless steel tub", "Top control panel", "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"],
+        "Refrigerator": ["ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker", "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"],
+        "Washer": ["ADA compliance", "Stackable", "Front load", "Top load", "Steam wash", "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"],
+        "Dryer": ["ADA compliance", "Stackable", "Gas or Electric", "Steam refresh", "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"],
+        "Range": ["ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean", "Griddle", "Induction cooktop", "Smart control"],
+        "Microwave": ["ADA compliance", "Sensor cooking", "Convection option", "Over-the-range", "Built-in", "Child lock", "Quick reheat"],
+        "Wall Oven": ["ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake", "WiFi control", "Touchscreen"],
+        "Cooktop": ["ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element", "Knob or touch controls", "Power boil"],
+        "Freezer": ["ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready", "Temperature alarm", "LED lighting"],
+        "Air Conditioner": ["ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode", "Smart thermostat", "Energy saver", "Remote control"],
+        "Wine Cooler": ["ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection", "Humidity control", "Quiet compressor"],
+        "Icemaker": ["ADA compliance", "Built-in", "Freestanding", "Clear cube ice", "Daily production rate", "Storage capacity"],
+        "Laundry Center / Combo": ["ADA compliance", "Stackable", "All-in-one", "Steam wash", "Sensor dry", "WiFi connectivity", "Space-saving design"],
+        "Trash Compactor": ["ADA compliance", "Touch-toe drawer", "Odor control", "Air filter", "Stainless steel construction", "Removable key lock"],
+        "Garbage Disposal": ["ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components", "Sound insulation", "Septic safe"]
     }
 
-    detected_type = "Refrigerator"  # default fallback
+    detected_type = "Refrigerator"
     for appliance_type in smart_features.keys():
         if appliance_type.lower() in competitor_info.lower():
             detected_type = appliance_type
@@ -219,5 +210,11 @@ if st.session_state.submitted:
     show_diff = st.radio("Show what doesn't match?", ["No", "Yes"], horizontal=True)
     if show_diff == "Yes":
         st.subheader("What Doesn't Match")
-        diff_table = generate_differences_table()
-        st.markdown(diff_table, unsafe_allow_html=True)
+        differences_description = get_differences_description(competitor_info, ge_match)
+        st.markdown(differences_description)
+
+        st.markdown("**Ask about a specific feature difference:**")
+        user_question = st.text_input("Enter a feature to compare (e.g., ADA compliance, noise level)")
+        if user_question:
+            clarification = get_feature_specific_difference(competitor_info, ge_match, user_question)
+            st.markdown(clarification)
