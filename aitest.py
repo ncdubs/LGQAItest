@@ -7,7 +7,7 @@ import os
 # --- BASIC PASSWORD PROTECTION ---
 def login():
     password = st.text_input("Enter Password", type="password")
-    if password != st.secrets.get("APP_PASSWORD", "letmein"):
+    if password != os.getenv("APP_PASSWORD", "letmein"):
         st.warning("Incorrect password.")
         st.stop()
 
