@@ -7,21 +7,20 @@ import os
 # --- BASIC PASSWORD PROTECTION ---
 def login():
     password = st.text_input("Enter Password", type="password")
-    if password != os.getenv("APP_PASSWORD", "letmein"):
+    if password != os.getenv("APP_PASSWORD"):
         st.warning("Incorrect password.")
         st.stop()
 
 login()
 
 # --- API KEY SETUP ---
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Secured in Render
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 st.title("AI-Powered SKU Matcher")
 
 # --- INPUT ---
 sku = st.text_input("Enter Competitor SKU:")
-specific_feature = st.text_input("Any specific feature you want to see/match (e.g., ADA compliance, stainless steel tub)?")
-submit = st.button("Find GE Equivalent")
+submit = st.button("Find Equivalent")
 
 # --- GPT PROMPT FUNCTIONS ---
 def get_competitor_product_info(sku):
@@ -41,15 +40,15 @@ def get_competitor_product_info(sku):
 
     ⚠️ Do NOT return a sale price. Only return the original full price if it is shown. If no full price is available, say 'Full price not listed.'
     """
-    
-    response = openai.ChatCompletion.create(
+
+    response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful assistant skilled at retrieving and summarizing appliance product information."},
             {"role": "user", "content": prompt}
         ]
     )
-    return response.choices[0].message['content']
+    return response.choices[0].message.content
 
 def get_ge_match(product_summary):
     prompt = f"""
@@ -66,14 +65,14 @@ def get_ge_match(product_summary):
     Be concise and helpful.
     """
 
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a product expert skilled at comparing appliances and recommending equivalent GE models."},
             {"role": "user", "content": prompt}
         ]
     )
-    return response.choices[0].message['content']
+    return response.choices[0].message.content
 
 def generate_comparison_table(competitor_info, ge_match, feature):
     prompt = f"""
@@ -105,16 +104,18 @@ def generate_comparison_table(competitor_info, ge_match, feature):
     | Product Link  | [link]                 | [link]               |
     """
 
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that can compare features between appliances."},
             {"role": "user", "content": prompt}
         ]
     )
-    return response.choices[0].message['content']
+    return response.choices[0].message.content
 
 # --- MAIN LOGIC ---
+specific_feature = None
+
 if submit and sku:
     with st.spinner("Retrieving competitor product info..."):
         competitor_info = get_competitor_product_info(sku)
@@ -123,8 +124,15 @@ if submit and sku:
 
     with st.spinner("Finding best GE match..."):
         ge_match = get_ge_match(competitor_info)
-        st.subheader("Recommended GE Equivalent")
+        st.subheader("Recommended Equivalent")
         st.markdown(ge_match)
+
+    feature_options = [
+        "ADA compliance", "Stainless steel tub", "WiFi connectivity",
+        "Energy Star rated", "Top control panel", "Child lock",
+        "Third rack", "SmartDry", "Quiet operation", "Steam clean"
+    ]
+    specific_feature = st.selectbox("Select a specific feature to compare:", feature_options)
 
     with st.spinner("Generating comparison table..."):
         feature_check = generate_comparison_table(competitor_info, ge_match, specific_feature)
