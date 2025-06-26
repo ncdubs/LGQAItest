@@ -65,7 +65,7 @@ def get_ge_match(product_summary):
 
         {product_summary}
 
-        Search GEAppliances.com and recommend the best match from GE, GE Profile, Cafe, Monogram, Haier, or Hotpoint.
+        Search GEAppliances.com and recommend the best match from GE, GE Profile, Cafe, Monogram, Haier, or Hotpoint. Make sure the product is currently available and not marked as 'no longer being manufactured' or 'discontinued'.
         Return:
         - GE product name and model
         - Why it's the best match
@@ -124,7 +124,7 @@ def generate_comparison_table(competitor_info, ge_match, features):
             feature_rows.append(f"| {feature} | Error retrieving info | Error retrieving info |")
     links_row = "| Product Link      | [Link1]                | [Link2]               |"
     return "
-".join(base_rows + feature_rows + [links_row])
+".join(base_rows + feature_rows + [links_row]).join(base_rows + feature_rows + [links_row])
 
 def get_differences_description(competitor_info, ge_match):
     try:
