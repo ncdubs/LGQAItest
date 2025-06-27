@@ -232,7 +232,7 @@ if st.session_state.submitted:
             f"| Product Link      | {extract_field(competitor_info, 'Link')} | {extract_field(ge_match, 'Link')} |"
         ]
         return "
-".join(base_rows + base_fields + feature_rows)
+".join(base_rows + base_fields + feature_rows).join(base_rows + base_fields + feature_rows)
 
     st.markdown(generate_comparison_table(competitor_info, ge_match, selected_features), unsafe_allow_html=True)
 
