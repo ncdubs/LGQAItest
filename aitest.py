@@ -23,10 +23,7 @@ login()
 # --- API KEY SETUP ---
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Ensure API key is set
-if not openai.api_key:
-    st.error("OPENAI_API_KEY is not set. Please set it as an environment variable.")
-    st.stop()
+
 
 st.title("AI-Powered SKU Matcher")
 
