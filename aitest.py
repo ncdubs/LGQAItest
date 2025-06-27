@@ -72,7 +72,10 @@ def get_ge_match(product_summary):
         - Why it's the best match
         - SKU
         - Link
-        - Image URL (if possible)
+        - Image URL (try to retrieve the first product image or use the og:image meta tag if available)
+        - MSRP (If only the sale price and discount are listed, estimate MSRP = sale price + savings)
+        - Current sale price
+        - Savings (dollar or percent if available)
         """
         response = openai.chat.completions.create(
             model="gpt-4",
@@ -125,6 +128,7 @@ def get_ge_match(product_summary):
                 ]
             )
             return retry_response.choices[0].message.content
+        return raw_output
     except Exception as e:
         return f"**Error retrieving GE match:** {str(e)}"
 
@@ -150,10 +154,10 @@ def generate_comparison_table(competitor_info, ge_match, features):
         {ge_match}
 
         Please return a clean markdown table row in the following format:
-        | {feature} | [value or "Not listed"] | [value or "Not listed"] |
+        | {feature} | [value or \"Not listed\"] | [value or \"Not listed\"] |
 
         Do not explain. Do not include extra text. Only return the table row.
-        If a value is unknown, use "Not listed".
+        If a value is unknown, use \"Not listed\".
         """
         try:
             response = openai.chat.completions.create(
@@ -167,14 +171,13 @@ def generate_comparison_table(competitor_info, ge_match, features):
         except Exception as e:
             feature_rows.append(f"| {feature} | Error retrieving info | Error retrieving info |")
     links_row = "| Product Link      | [Link1]                | [Link2]               |"
-    return "
-".join(base_rows + feature_rows + [links_row]).join(base_rows + feature_rows + [links_row])
+    return "\n".join(base_rows + feature_rows + [links_row])
 
 def get_differences_description(competitor_info, ge_match):
     try:
         prompt = f"""
         Compare the following two appliance descriptions. Write a concise paragraph summarizing what key features do NOT match or differ between them.
-        
+
         Competitor Product:
         {competitor_info}
 
@@ -242,22 +245,22 @@ if st.session_state.submitted:
     ], width=300, caption=["Competitor Product", "GE Product"])
 
     smart_features = {
-        "Dishwasher": ["ADA compliance", "Stainless steel tub", "Top control panel", "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"],
-        "Refrigerator": ["ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker", "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"],
-        "Washer": ["ADA compliance", "Stackable", "Front load", "Top load", "Steam wash", "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"],
-        "Dryer": ["ADA compliance", "Stackable", "Gas or Electric", "Steam refresh", "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"],
-        "Range": ["ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean", "Griddle", "Induction cooktop", "Smart control"],
-        "Microwave": ["ADA compliance", "Sensor cooking", "Convection option", "Over-the-range", "Built-in", "Child lock", "Quick reheat"],
-        "Wall Oven": ["ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake", "WiFi control", "Touchscreen"],
-        "Cooktop": ["ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element", "Knob or touch controls", "Power boil"],
-        "Freezer": ["ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready", "Temperature alarm", "LED lighting"],
-        "Air Conditioner": ["ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode", "Smart thermostat", "Energy saver", "Remote control"],
-        "Wine Cooler": ["ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection", "Humidity control", "Quiet compressor"],
-        "Icemaker": ["ADA compliance", "Built-in", "Freestanding", "Clear cube ice", "Daily production rate", "Storage capacity"],
-        "Laundry Center / Combo": ["ADA compliance", "Stackable", "All-in-one", "Steam wash", "Sensor dry", "WiFi connectivity", "Space-saving design"],
-        "Trash Compactor": ["ADA compliance", "Touch-toe drawer", "Odor control", "Air filter", "Stainless steel construction", "Removable key lock"],
-        "Garbage Disposal": ["ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components", "Sound insulation", "Septic safe"]
-    }
+    "Dishwasher": ["ADA compliance", "Stainless steel tub", "Top control panel", "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"],
+    "Refrigerator": ["ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker", "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"],
+    "Washer": ["ADA compliance", "Stackable", "Front load", "Top load", "Steam wash", "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"],
+    "Dryer": ["ADA compliance", "Stackable", "Gas or Electric", "Steam refresh", "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"],
+    "Range": ["ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean", "Griddle", "Induction cooktop", "Smart control"],
+    "Microwave": ["ADA compliance", "Sensor cooking", "Convection option", "Over-the-range", "Built-in", "Child lock", "Quick reheat"],
+    "Wall Oven": ["ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake", "WiFi control", "Touchscreen"],
+    "Cooktop": ["ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element", "Knob or touch controls", "Power boil"],
+    "Freezer": ["ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready", "Temperature alarm", "LED lighting"],
+    "Air Conditioner": ["ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode", "Smart thermostat", "Energy saver", "Remote control"],
+    "Wine Cooler": ["ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection", "Humidity control", "Quiet compressor"],
+    "Icemaker": ["ADA compliance", "Built-in", "Freestanding", "Clear cube ice", "Daily production rate", "Storage capacity"],
+    "Laundry Center / Combo": ["ADA compliance", "Stackable", "All-in-one", "Steam wash", "Sensor dry", "WiFi connectivity", "Space-saving design"],
+    "Trash Compactor": ["ADA compliance", "Touch-toe drawer", "Odor control", "Air filter", "Stainless steel construction", "Removable key lock"],
+    "Garbage Disposal": ["ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components", "Sound insulation", "Septic safe"]
+}
 
     detected_type = "Refrigerator"
     for appliance_type in smart_features.keys():
