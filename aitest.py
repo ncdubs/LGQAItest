@@ -3,6 +3,7 @@
 import streamlit as st
 import openai
 import os
+import re
 
 # --- SESSION STATE ---
 if "submitted" not in st.session_state:
@@ -27,6 +28,32 @@ st.title("AI-Powered SKU Matcher")
 # --- INPUT ---
 sku = st.text_input("Enter Competitor SKU:", value=st.session_state.sku)
 submit = st.button("Find Equivalent")
+
+# --- UTILITIES ---
+def extract_field(text, field):
+    """Extracts a value after a dash from a GPT bullet point line."""
+    lines = text.split('\n')
+    for line in lines:
+        if field.lower() in line.lower():
+            parts = line.split("-", 1)
+            if len(parts) == 2:
+                return parts[1].strip()
+    return "Not listed"
+
+def estimate_msrp_from_text(text):
+    """Estimate MSRP from sale price + savings if available, else extract MSRP directly."""
+    try:
+        sale_match = re.search(r'\$([\d,]+).*save[s]?[\s\S]*?\$([\d,]+)', text, re.IGNORECASE)
+        if sale_match:
+            sale = int(sale_match.group(1).replace(",", ""))
+            savings = int(sale_match.group(2).replace(",", ""))
+            return f"${sale + savings} (estimated)"
+        msrp_match = re.search(r'(MSRP|list price).*?\$([\d,]+)', text, re.IGNORECASE)
+        if msrp_match:
+            return f"${msrp_match.group(2)}"
+    except:
+        pass
+    return "Not listed"
 
 # --- GPT PROMPT FUNCTIONS ---
 def get_competitor_product_info(sku):
@@ -86,7 +113,6 @@ def get_ge_match(product_summary):
         )
         raw_output = response.choices[0].message.content
 
-        # Secondary availability check
         verify_prompt = f"""
         Is the following GE appliance currently available and not discontinued?
 
@@ -132,95 +158,6 @@ def get_ge_match(product_summary):
     except Exception as e:
         return f"**Error retrieving GE match:** {str(e)}"
 
-def generate_comparison_table(competitor_info, ge_match, features):
-    base_rows = [
-        "| Feature           | Competitor Product     | GE Product           |",
-        "|-------------------|------------------------|----------------------|",
-        "| Brand             | [Brand Placeholder]    | [Brand Placeholder]  |",
-        "| SKU               | [SKU1]                 | [SKU2]               |",
-        "| Price             | [Price1]               | [Price2]             |",
-        "| Size              | [Size1]                | [Size2]              |",
-        "| Configuration     | [Config1]              | [Config2]            |"
-    ]
-    feature_rows = []
-    for feature in features:
-        prompt = f"""
-        A user is comparing two appliances and wants to know the specific values for this feature: {feature}.
-
-        Competitor Product:
-        {competitor_info}
-
-        GE Match:
-        {ge_match}
-
-        Please return a clean markdown table row in the following format:
-        | {feature} | [value or \"Not listed\"] | [value or \"Not listed\"] |
-
-        Do not explain. Do not include extra text. Only return the table row.
-        If a value is unknown, use \"Not listed\".
-        """
-        try:
-            response = openai.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You return markdown table rows comparing appliance feature values."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            feature_rows.append(response.choices[0].message.content.strip())
-        except Exception as e:
-            feature_rows.append(f"| {feature} | Error retrieving info | Error retrieving info |")
-    links_row = "| Product Link      | [Link1]                | [Link2]               |"
-    return "\n".join(base_rows + feature_rows + [links_row])
-
-def get_differences_description(competitor_info, ge_match):
-    try:
-        prompt = f"""
-        Compare the following two appliance descriptions. Write a concise paragraph summarizing what key features do NOT match or differ between them.
-
-        Competitor Product:
-        {competitor_info}
-
-        GE Match:
-        {ge_match}
-
-        Be clear and use simple language. Mention features that are included in one product but not the other.
-        """
-        response = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that identifies key differences in appliance specifications."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"**Error identifying mismatches:** {str(e)}"
-
-def get_feature_specific_difference(competitor_info, ge_match, user_input):
-    try:
-        prompt = f"""
-        A user is comparing two appliances and wants to know the specific difference related to: {user_input}.
-
-        Competitor Product:
-        {competitor_info}
-
-        GE Match:
-        {ge_match}
-
-        Give a short and clear answer describing whether the feature exists in both, only one, or neither product.
-        """
-        response = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You help identify appliance feature differences clearly."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"**Error comparing specific feature:** {str(e)}"
-
 # --- MAIN LOGIC ---
 specific_features = []
 
@@ -240,27 +177,27 @@ if st.session_state.submitted:
         st.markdown(ge_match)
 
     st.image([
-        "https://example.com/competitor_image.jpg",
-        "https://example.com/ge_image.jpg"
+        extract_field(competitor_info, "Image URL"),
+        extract_field(ge_match, "Image URL")
     ], width=300, caption=["Competitor Product", "GE Product"])
 
     smart_features = {
-    "Dishwasher": ["ADA compliance", "Stainless steel tub", "Top control panel", "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"],
-    "Refrigerator": ["ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker", "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"],
-    "Washer": ["ADA compliance", "Stackable", "Front load", "Top load", "Steam wash", "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"],
-    "Dryer": ["ADA compliance", "Stackable", "Gas or Electric", "Steam refresh", "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"],
-    "Range": ["ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean", "Griddle", "Induction cooktop", "Smart control"],
-    "Microwave": ["ADA compliance", "Sensor cooking", "Convection option", "Over-the-range", "Built-in", "Child lock", "Quick reheat"],
-    "Wall Oven": ["ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake", "WiFi control", "Touchscreen"],
-    "Cooktop": ["ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element", "Knob or touch controls", "Power boil"],
-    "Freezer": ["ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready", "Temperature alarm", "LED lighting"],
-    "Air Conditioner": ["ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode", "Smart thermostat", "Energy saver", "Remote control"],
-    "Wine Cooler": ["ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection", "Humidity control", "Quiet compressor"],
-    "Icemaker": ["ADA compliance", "Built-in", "Freestanding", "Clear cube ice", "Daily production rate", "Storage capacity"],
-    "Laundry Center / Combo": ["ADA compliance", "Stackable", "All-in-one", "Steam wash", "Sensor dry", "WiFi connectivity", "Space-saving design"],
-    "Trash Compactor": ["ADA compliance", "Touch-toe drawer", "Odor control", "Air filter", "Stainless steel construction", "Removable key lock"],
-    "Garbage Disposal": ["ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components", "Sound insulation", "Septic safe"]
-}
+        "Dishwasher": ["ADA compliance", "Stainless steel tub", "Top control panel", "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"],
+        "Refrigerator": ["ADA compliance", "WiFi connectivity", "Energy Star rated", "Ice maker", "Water dispenser", "Door-in-door", "Adjustable shelves", "Temperature zones", "Freezer drawer"],
+        "Washer": ["ADA compliance", "Stackable", "Front load", "Top load", "Steam wash", "SmartDispense", "Sanitize cycle", "WiFi connectivity", "Energy Star rated"],
+        "Dryer": ["ADA compliance", "Stackable", "Gas or Electric", "Steam refresh", "Sensor dry", "Wrinkle care", "Smart features", "Sanitize cycle"],
+        "Range": ["ADA compliance", "Convection oven", "Air fry", "Double oven", "Self-clean", "Griddle", "Induction cooktop", "Smart control"],
+        "Microwave": ["ADA compliance", "Sensor cooking", "Convection option", "Over-the-range", "Built-in", "Child lock", "Quick reheat"],
+        "Wall Oven": ["ADA compliance", "Double oven", "Convection", "Self-cleaning", "Steam bake", "WiFi control", "Touchscreen"],
+        "Cooktop": ["ADA compliance", "Induction", "Gas", "Electric coil", "Bridge element", "Knob or touch controls", "Power boil"],
+        "Freezer": ["ADA compliance", "Upright", "Chest", "Frost-free", "Garage ready", "Temperature alarm", "LED lighting"],
+        "Air Conditioner": ["ADA compliance", "Portable", "Window-mounted", "Dehumidifier mode", "Smart thermostat", "Energy saver", "Remote control"],
+        "Wine Cooler": ["ADA compliance", "Dual zone", "Built-in or freestanding", "UV protection", "Humidity control", "Quiet compressor"],
+        "Icemaker": ["ADA compliance", "Built-in", "Freestanding", "Clear cube ice", "Daily production rate", "Storage capacity"],
+        "Laundry Center / Combo": ["ADA compliance", "Stackable", "All-in-one", "Steam wash", "Sensor dry", "WiFi connectivity", "Space-saving design"],
+        "Trash Compactor": ["ADA compliance", "Touch-toe drawer", "Odor control", "Air filter", "Stainless steel construction", "Removable key lock"],
+        "Garbage Disposal": ["ADA compliance", "Continuous feed", "Batch feed", "Stainless steel grind components", "Sound insulation", "Septic safe"]
+    }
 
     detected_type = "Refrigerator"
     for appliance_type in smart_features.keys():
@@ -276,17 +213,77 @@ if st.session_state.submitted:
         selected_features.append(other_feature)
 
     st.subheader("Feature Comparison Table")
-    feature_check = generate_comparison_table(competitor_info, ge_match, selected_features)
-    st.markdown(feature_check, unsafe_allow_html=True)
+    def generate_comparison_table(competitor_info, ge_match, features):
+        base_rows = [
+            "| Feature           | Competitor Product     | GE Product           |",
+            "|-------------------|------------------------|----------------------|"
+        ]
+        feature_rows = []
+        for feature in features:
+            value1 = extract_field(competitor_info, feature)
+            value2 = extract_field(ge_match, feature)
+            feature_rows.append(f"| {feature} | {value1} | {value2} |")
+        base_fields = [
+            f"| Brand             | {extract_field(competitor_info, 'Brand')} | {extract_field(ge_match, 'Brand')} |",
+            f"| SKU               | {extract_field(competitor_info, 'SKU')} | {extract_field(ge_match, 'SKU')} |",
+            f"| Price             | {estimate_msrp_from_text(competitor_info)} | {estimate_msrp_from_text(ge_match)} |",
+            f"| Size              | {extract_field(competitor_info, 'Dimensions')} | {extract_field(ge_match, 'Dimensions')} |",
+            f"| Configuration     | {extract_field(competitor_info, 'Key features')} | {extract_field(ge_match, 'Key features')} |",
+            f"| Product Link      | {extract_field(competitor_info, 'Link')} | {extract_field(ge_match, 'Link')} |"
+        ]
+        return "
+".join(base_rows + base_fields + feature_rows)
+
+    st.markdown(generate_comparison_table(competitor_info, ge_match, selected_features), unsafe_allow_html=True)
 
     show_diff = st.radio("Show what doesn't match?", ["No", "Yes"], horizontal=True)
     if show_diff == "Yes":
         st.subheader("What Doesn't Match")
-        differences_description = get_differences_description(competitor_info, ge_match)
-        st.markdown(differences_description)
+        from textwrap import dedent
+        prompt = dedent(f"""
+        Compare the following two appliance descriptions. Write a concise paragraph summarizing what key features do NOT match or differ between them.
 
-        st.markdown("**Ask about a specific feature difference:**")
+        Competitor Product:
+        {competitor_info}
+
+        GE Match:
+        {ge_match}
+
+        Be clear and use simple language. Mention features that are included in one product but not the other.
+        """)
+        try:
+            diff_response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that identifies key differences in appliance specifications."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            st.markdown(diff_response.choices[0].message.content)
+        except Exception as e:
+            st.error(f"Error comparing differences: {e}")
+
         user_question = st.text_input("Enter a feature to compare (e.g., ADA compliance, noise level)")
         if user_question:
-            clarification = get_feature_specific_difference(competitor_info, ge_match, user_question)
-            st.markdown(clarification)
+            follow_up_prompt = f"""
+            A user is comparing two appliances and wants to know the specific difference related to: {user_question}.
+
+            Competitor Product:
+            {competitor_info}
+
+            GE Match:
+            {ge_match}
+
+            Give a short and clear answer describing whether the feature exists in both, only one, or neither product.
+            """
+            try:
+                clarification_response = openai.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You help identify appliance feature differences clearly."},
+                        {"role": "user", "content": follow_up_prompt}
+                    ]
+                )
+                st.markdown(clarification_response.choices[0].message.content)
+            except Exception as e:
+                st.error(f"Error fetching specific feature info: {e}")
