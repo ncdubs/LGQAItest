@@ -23,6 +23,11 @@ login()
 # --- API KEY SETUP ---
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# Ensure API key is set
+if not openai.api_key:
+    st.error("OPENAI_API_KEY is not set. Please set it as an environment variable.")
+    st.stop()
+
 st.title("AI-Powered SKU Matcher")
 
 # --- INPUT ---
@@ -176,10 +181,11 @@ if st.session_state.submitted:
         st.subheader("Recommended Equivalent")
         st.markdown(ge_match)
 
-    st.image([
-        extract_field(competitor_info, "Image URL"),
-        extract_field(ge_match, "Image URL")
-    ], width=300, caption=["Competitor Product", "GE Product"])
+    image1 = extract_field(competitor_info, "Image URL")
+    image2 = extract_field(ge_match, "Image URL")
+    valid_images = [img for img in [image1, image2] if img.startswith("http")]
+    if valid_images:
+        st.image(valid_images, width=300, caption=["Competitor Product", "GE Product"])
 
     smart_features = {
         "Dishwasher": ["ADA compliance", "Stainless steel tub", "Top control panel", "Child lock", "Third rack", "SmartDry", "Quiet operation", "Steam clean"],
@@ -231,7 +237,8 @@ if st.session_state.submitted:
             f"| Configuration     | {extract_field(competitor_info, 'Key features')} | {extract_field(ge_match, 'Key features')} |",
             f"| Product Link      | {extract_field(competitor_info, 'Link')} | {extract_field(ge_match, 'Link')} |"
         ]
-        return "\n".join(base_rows + base_fields + feature_rows)
+        return "
+".join(base_rows + base_fields + feature_rows)
 
     st.markdown(generate_comparison_table(competitor_info, ge_match, selected_features), unsafe_allow_html=True)
 
